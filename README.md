@@ -1,7 +1,7 @@
 # freebsd-zpool-migrate
 *Disclaimer: provided as-is, so no guarantee. Use this information at your own risk!*
 
-Small script how to transfer my existing ZFS pool to another disk layout.
+Small transcript (for me) how to transfer my existing ZFS pool to another disk layout.
 
 
 # Starting Point
@@ -39,15 +39,16 @@ Single steps to move
   - `zfs create rpool/zz_MIGRATE` create new target ZFS dataset to temporarily hold the transferred datasets
 
 ### source system
-- transfer over to new/target system
-  - `zfs send -R rpool@migrate-start | ssh root@targethost "zfs receive -Fdu rpool"`
-
+transfer all zfs datasets "within" the pool (but not the pool itself
 ```
-zfs list -H -o name -d 1 rpool | grep "rpool/" > /zfs.txt # skip root filesystem
-#for i in "`cat /zfs.txt`"; do zfs send -R ${i} | ssh root@targethost "zfs receive -Fdu rpool"
-for set in $(zfs list -H -d 1 -o name | grep "rpool/"); do zfs send -DPRv $set@migration-start | ssh  10.16.0.1 "zfs recv -dFu rpool/zzz_MIGRATE"; done;
+for set in $(zfs list -H -d 1 -o name | grep "rpool/"); do zfs send -PRv $set@migration-start | ssh  10.16.0.1 "zfs recv -dFu rpool/zzz_MIGRATE"; done;
 # zfs send: D-deduplicate, Pv-print progress, R-recursive
 # zfs recv: d-drop pool name, F-force rollback to last snap, u-do NOT mount
+```
+```
+# copy over the remaining subdirs (not zfs datasets)
+tar cf - /root /boot /etc | ssh root@targethost "tar xfv - -C /rpool/zzz_MIGRATE/"
+
 ```
 
 
