@@ -14,54 +14,49 @@ Single steps to move
   - FreeBSD 11.1-RELEASE
   - 2x 8TB WD RED
 
-# Preparation
+# Initialization
 - Install a new FreeBSD 11.1 system with root-on-ZFS
   - check and copy new options from:
     - /etc/sysctl.conf
     - /boot/loader.conf
     - zfs get (all options (checksum, noatim, compress, etc.) from pool ZFS datasets)
     - GPT partition layout
+  - new pool: `rpool`, same as old zpool
+  - activate mirror and full disk encryption via installer
+  
+## Preparation
+- install necessary tools: `pkg install tmux vim-lite`
 
-# Procedure
-- rpool: existing/productive zpool
-- newpool: newly created zpool
-
-## Variant a) local transfer
-- Install the two new drives into existing system
-- Prepare the new disks (layout) as seen from step "Preparation"
-- `zpool create mirror newpool ada0 ada1` <-- needs to be corrected, pay special attention to the correct device names!
+## Remote transfer
+### source system
 - make snapshot of existing system
   - `zfs snapshot -r rpool@migrate-start`
-- transfer data to new zpool
-  - `zfs send -R rpool@migrate-start | zfs receive newpool`
-- Install bootcode onto new drives
-- reboot to live FreeBSD 11.1 system from USB-stick
-- rename zpool with `zpool import newpool rpool`
-- `zpool export rpool`
-- reboot the system, detach old drives
-### Upgrade to new FreeBSD version
-- follow the instructions from https://www.freebsd.org/doc/en/books/handbook/updating-upgrading-freebsdupdate.html
 
-## Variant b) remote transfer
-- make snapshot of existing system
-  - `zfs snapshot -r rpool@migrate-start`
+### target (new) system
 - temporarily allow root SSH access on target system
+  - `vim /etc/ssh/sshd_config` and activate/change `PermitRootLogin yes`
+  - restart sshd with `service sshd restart`
+  - `zfs create rpool/zz_MIGRATE` create new target ZFS dataset to temporarily hold the transferred datasets
+
+### source system
 - transfer over to new/target system
   - `zfs send -R rpool@migrate-start | ssh root@targethost "zfs receive -Fdu rpool"`
-### optional (test)
-exclude the / directory from the transfer and use a sane starting point
+
 ```
-zfs snapshot -r rpool@migrate-start
-zfs list -H -o name rpool > /zfs.txt
-# remove any unwanted ZFS datasets from zfs.txt
-for i in "`cat /zfs.txt`"; do zfs send -R ${i} | ssh root@targethost "zfs receive -Fdu rpool"
-# okay, that includes the snapshots, BUT also the child datasets ...
+zfs list -H -o name -d 1 rpool | grep "rpool/" > /zfs.txt # skip root filesystem
+#for i in "`cat /zfs.txt`"; do zfs send -R ${i} | ssh root@targethost "zfs receive -Fdu rpool"
+for set in $(zfs list -H -d 1 -o name | grep "rpool/"); do zfs send -DPRv $set@migration-start | ssh  10.16.0.1 "zfs recv -dFu rpool/zzz_MIGRATE"; done;
+# zfs send: D-deduplicate, Pv-print progress, R-recursive
+# zfs recv: d-drop pool name, F-force rollback to last snap, u-do NOT mount
 ```
 
 
 ### after transfer on target system
 - remove root SSH access
+- move ZFS datasets to correct(previous) location
+- copy old configs and stuff (e.g. `/root`)
 - add SSD cache/ZIL devices again
+
 
 # References
 - see my own zfs-backup script
