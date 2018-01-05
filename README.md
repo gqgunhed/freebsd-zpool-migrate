@@ -36,7 +36,7 @@ Single steps to move
 - temporarily allow root SSH access on target system
   - `vim /etc/ssh/sshd_config` and activate/change `PermitRootLogin yes`
   - restart sshd with `service sshd restart`
-  - `zfs create rpool/zz_MIGRATE` create new target ZFS dataset to temporarily hold the transferred datasets
+  - `zfs create rpool/zzz_MIGRATE` create new target ZFS dataset to temporarily hold the transferred datasets
 
 ### source system
 transfer all zfs datasets "within" the pool (but not the pool itself
