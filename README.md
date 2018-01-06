@@ -37,6 +37,7 @@ Single steps to move
   - `vim /etc/ssh/sshd_config` and activate/change `PermitRootLogin yes`
   - restart sshd with `service sshd restart`
   - `zfs create rpool/zzz_MIGRATE` create new target ZFS dataset to temporarily hold the transferred datasets
+  - `mkdir /rpool/zzz_MIGRATE/usr_local_etc` create subdir for configs
 
 ### source system
 transfer all zfs datasets "within" the pool (but not the pool itself
@@ -48,14 +49,43 @@ for set in $(zfs list -H -d 1 -o name | grep "rpool/"); do zfs send -PRv $set@mi
 ```
 # copy over the remaining subdirs (not zfs datasets)
 tar cf - /root /boot /etc | ssh root@targethost "tar xfv - -C /rpool/zzz_MIGRATE/"
+tar cf - /usr/local/etc/* | ssh root@targethost "tar xfv - -C /rpool/zzz_MIGRATE/usr_local_etc"
+```
 
+#### Install needed software
+
+## Finalize data movement
+Now send an incremental snapshot of the datasets
+
+### source system
+- make snapshot of existing system
+  - `zfs snapshot -r rpool@migration-end`
+
+### source system
+transfer all zfs datasets "within" the pool (but not the pool itself
+```
+for set in $(zfs list -H -d 1 -o name | grep "rpool/"); do zfs send -PRv -I $set@migration-start $set@migration-end | ssh  10.16.0.1 "zfs recv -du rpool/zzz_MIGRATE"; done;
+# zfs send -I [old snap] [newer snap]: send incremental
 ```
 
 
 ### after transfer on target system
+
+#### copy old configs and stuff (e.g. `/root`)
+```
+pkg install -y ezjail git py27-salt mc
+cp -ivRa /rpool/zzz_MIGRATE/usr/local/etc/salt /usr/local/etc/
+cp -ivRa /rpool/zzz_MIGRATE/usr/local/etc/ezjail* /usr/local/etc/
+cp -ivRa /rpool/zzz_MIGRATE/etc/fstab.* /etc/
+cp -ivRa /rpool/zzz_MIGRATE/etc/fstab.* /etc/
+```
+#### move ZFS datasets to correct(previous) location
+```
+zfs rename rpool/zzz_MIGRATE rpool/
+```
+
+#### Tuning
 - remove root SSH access
-- move ZFS datasets to correct(previous) location
-- copy old configs and stuff (e.g. `/root`)
 - add SSD cache/ZIL devices again
 
 
