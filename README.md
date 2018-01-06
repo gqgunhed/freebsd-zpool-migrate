@@ -81,7 +81,8 @@ cp -ivRa /rpool/zzz_MIGRATE/etc/fstab.* /etc/
 ```
 #### move ZFS datasets to correct(previous) location
 ```
-zfs rename rpool/zzz_MIGRATE rpool/
+zfs rename rpool/zzz_MIGRATE/jails rpool/jails
+zfs rename rpool/zzz_MIGRATE/export rpool/export
 ```
 
 #### Tuning
